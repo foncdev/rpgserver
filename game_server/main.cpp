@@ -23,20 +23,24 @@ class GameServer {
 public:
     GameServer() {
         // 설정 로드
-        port_ = Common::ServerConfig::GetGameServerPort();
-        max_connections_ = Common::ServerConfig::GetGameServerMaxConnections();
-        game_tick_rate_ = Common::ServerConfig::GetGameServerTickRate();
-        log_level_ = Common::ServerConfig::GetGameServerLogLevel();
+        if (!Common::GameServerConfig::LoadConfig()) {
+            LOG_WARNING("GAME", "Failed to load config, using defaults");
+        }
+
+        port_ = Common::GameServerConfig::GetPort();
+        max_connections_ = Common::GameServerConfig::GetMaxConnections();
+        game_tick_rate_ = Common::GameServerConfig::GetTickRate();
+        log_level_ = Common::GameServerConfig::GetLogLevel();
         game_running_ = false;
     }
 
     bool Initialize() {
         // 로그 매니저 초기화
         Common::LogManager::Instance().SetLogLevel(StringToLogLevel(log_level_));
-        Common::LogManager::Instance().SetConsoleOutput(Common::ServerConfig::GetLogConsoleOutput());
+        Common::LogManager::Instance().SetConsoleOutput(Common::GameServerConfig::GetConsoleOutput());
         Common::LogManager::Instance().SetFileOutput(
-            Common::ServerConfig::GetLogFileOutput(),
-            "logs/game_server.log"
+            Common::GameServerConfig::GetFileOutput(),
+            Common::GameServerConfig::GetLogFile()
         );
 
         LOG_INFO("GAME", "Initializing Game Server...");
@@ -290,19 +294,17 @@ private:
     void ReloadConfig() {
         LOG_INFO("GAME", "Reloading configuration...");
 
-        if (std::filesystem::exists("config/server.conf")) {
-            if (Common::ConfigManager::Instance().LoadFromFile("config/server.conf")) {
+        if (std::filesystem::exists("config/game_server.conf")) {
+            if (Common::GameServerConfig::LoadConfig("config/game_server.conf")) {
                 // 새 설정 적용
-                int new_log_level_int = static_cast<int>(StringToLogLevel(Common::ServerConfig::GetGameServerLogLevel()));
-                int current_log_level_int = static_cast<int>(StringToLogLevel(log_level_));
-
-                if (new_log_level_int != current_log_level_int) {
-                    log_level_ = Common::ServerConfig::GetGameServerLogLevel();
+                std::string new_log_level = Common::GameServerConfig::GetLogLevel();
+                if (new_log_level != log_level_) {
+                    log_level_ = new_log_level;
                     Common::LogManager::Instance().SetLogLevel(StringToLogLevel(log_level_));
                     LOG_INFO_FORMAT("GAME", "Log level changed to: %s", log_level_.c_str());
                 }
 
-                int new_tps = Common::ServerConfig::GetGameServerTickRate();
+                int new_tps = Common::GameServerConfig::GetTickRate();
                 if (new_tps != game_tick_rate_) {
                     game_tick_rate_ = new_tps;
                     LOG_INFO_FORMAT("GAME", "TPS changed to: %d", game_tick_rate_);
@@ -340,19 +342,16 @@ private:
 
 int main() {
     try {
-        // 설정 초기화
-        Common::ServerConfig::InitializeDefaults();
-
         // 설정 파일이 있으면 로드
-        if (std::filesystem::exists("config/server.conf")) {
-            if (!Common::ConfigManager::Instance().LoadFromFile("config/server.conf")) {
+        if (std::filesystem::exists("config/game_server.conf")) {
+            if (!Common::GameServerConfig::LoadConfig("config/game_server.conf")) {
                 std::cerr << "Warning: Failed to load config file, using defaults" << std::endl;
             }
         } else {
             // 기본 설정 파일 생성
             std::filesystem::create_directories("config");
-            Common::ConfigManager::Instance().SaveToFile("config/server.conf");
-            std::cout << "Created default configuration file: config/server.conf" << std::endl;
+            Common::GameServerConfig::SaveDefaultConfig("config/game_server.conf");
+            std::cout << "Created default configuration file: config/game_server.conf" << std::endl;
         }
 
         // 로그 디렉토리 생성

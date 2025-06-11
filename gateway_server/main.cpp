@@ -7,6 +7,16 @@
 #include <thread>
 #include <filesystem>
 
+// 로그 레벨 문자열을 enum으로 변환하는 헬퍼 함수
+Common::LogLevel StringToLogLevel(const std::string& level) {
+    if (level == "DEBUG") return Common::LogLevel::DEBUG;
+    if (level == "INFO") return Common::LogLevel::INFO;
+    if (level == "WARNING") return Common::LogLevel::WARNING;
+    if (level == "ERROR") return Common::LogLevel::ERROR;
+    if (level == "CRITICAL") return Common::LogLevel::CRITICAL;
+    return Common::LogLevel::INFO; // 기본값
+}
+
 class GatewayServer {
 public:
     GatewayServer() {
