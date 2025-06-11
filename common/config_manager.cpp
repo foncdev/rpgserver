@@ -1,4 +1,4 @@
-// common/config_manager.cpp
+// common/config_manager.cpp - Updated Implementation for Server-Specific Configs
 #include "config_manager.h"
 #include "log_manager.h"
 #include <algorithm>
@@ -7,6 +7,7 @@
 
 namespace Common {
 
+// ConfigManager 기본 구현 (기존과 동일)
 ConfigManager& ConfigManager::Instance() {
     static ConfigManager instance;
     return instance;
@@ -14,52 +15,52 @@ ConfigManager& ConfigManager::Instance() {
 
 bool ConfigManager::LoadFromFile(const std::string& filename) {
     std::lock_guard<std::mutex> lock(config_mutex_);
-    
+
     std::ifstream file(filename);
     if (!file.is_open()) {
         return false;
     }
-    
+
     std::string line;
     std::string current_section;
     int line_number = 0;
-    
+
     while (std::getline(file, line)) {
         line_number++;
         line = TrimString(line);
-        
+
         // 빈 라인이나 주석 건너뛰기
         if (line.empty() || line[0] == '#' || line[0] == ';') {
             continue;
         }
-        
+
         // 섹션 파싱 [section_name]
         if (line[0] == '[' && line.back() == ']') {
             current_section = line.substr(1, line.length() - 2);
             current_section = TrimString(current_section);
             continue;
         }
-        
+
         // 키=값 파싱
         size_t equals_pos = line.find('=');
         if (equals_pos != std::string::npos) {
             std::string key = TrimString(line.substr(0, equals_pos));
             std::string value = TrimString(line.substr(equals_pos + 1));
-            
+
             if (!key.empty()) {
                 std::string full_key = CreateKey(current_section, key);
                 config_data_[full_key] = value;
             }
         }
     }
-    
+
     file.close();
     return true;
 }
 
 bool ConfigManager::SaveToFile(const std::string& filename) const {
     std::lock_guard<std::mutex> lock(config_mutex_);
-    
+
     // 디렉토리가 없으면 생성
     std::filesystem::path file_path(filename);
     auto parent_path = file_path.parent_path();
@@ -70,15 +71,15 @@ bool ConfigManager::SaveToFile(const std::string& filename) const {
             return false;
         }
     }
-    
+
     std::ofstream file(filename);
     if (!file.is_open()) {
         return false;
     }
-    
+
     // 섹션별로 정리해서 저장
     std::map<std::string, std::map<std::string, std::string>> organized_data;
-    
+
     for (const auto& [full_key, value] : config_data_) {
         size_t dot_pos = full_key.find('.');
         if (dot_pos != std::string::npos) {
@@ -86,49 +87,41 @@ bool ConfigManager::SaveToFile(const std::string& filename) const {
             std::string key = full_key.substr(dot_pos + 1);
             organized_data[section][key] = value;
         } else {
-            // 섹션이 없는 키는 빈 섹션에 저장
             organized_data[""][full_key] = value;
         }
     }
-    
+
     // 파일에 쓰기
-    file << "# MMORPG Server Configuration File" << std::endl;
-    file << "# Generated automatically" << std::endl;
-    file << std::endl;
-    
     for (const auto& [section, keys] : organized_data) {
         if (!section.empty()) {
             file << "[" << section << "]" << std::endl;
         }
-        
+
         for (const auto& [key, value] : keys) {
             if (!key.empty()) {
                 file << key << " = " << value << std::endl;
             }
         }
-        
+
         file << std::endl;
     }
-    
+
     file.close();
     return true;
 }
 
+// 기본 메서드들 (기존과 동일)
 std::string ConfigManager::GetString(const std::string& section, const std::string& key, const std::string& default_value) const {
     std::lock_guard<std::mutex> lock(config_mutex_);
-    
     std::string full_key = CreateKey(section, key);
     auto it = config_data_.find(full_key);
-    
     return (it != config_data_.end()) ? it->second : default_value;
 }
 
 int ConfigManager::GetInt(const std::string& section, const std::string& key, int default_value) const {
     std::string value = GetString(section, key);
-    if (value.empty()) {
-        return default_value;
-    }
-    
+    if (value.empty()) return default_value;
+
     try {
         return std::stoi(value);
     } catch (const std::exception&) {
@@ -138,27 +131,10 @@ int ConfigManager::GetInt(const std::string& section, const std::string& key, in
 
 bool ConfigManager::GetBool(const std::string& section, const std::string& key, bool default_value) const {
     std::string value = GetString(section, key);
-    if (value.empty()) {
-        return default_value;
-    }
-    
-    // 소문자로 변환
-    std::transform(value.begin(), value.end(), value.begin(), ::tolower);
-    
-    return (value == "true" || value == "1" || value == "yes" || value == "on");
-}
+    if (value.empty()) return default_value;
 
-double ConfigManager::GetDouble(const std::string& section, const std::string& key, double default_value) const {
-    std::string value = GetString(section, key);
-    if (value.empty()) {
-        return default_value;
-    }
-    
-    try {
-        return std::stod(value);
-    } catch (const std::exception&) {
-        return default_value;
-    }
+    std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+    return (value == "true" || value == "1" || value == "yes" || value == "on");
 }
 
 void ConfigManager::SetString(const std::string& section, const std::string& key, const std::string& value) {
@@ -175,264 +151,277 @@ void ConfigManager::SetBool(const std::string& section, const std::string& key, 
     SetString(section, key, value ? "true" : "false");
 }
 
-void ConfigManager::SetDouble(const std::string& section, const std::string& key, double value) {
-    SetString(section, key, std::to_string(value));
-}
-
-bool ConfigManager::HasSection(const std::string& section) const {
-    std::lock_guard<std::mutex> lock(config_mutex_);
-    
-    std::string section_prefix = section + ".";
-    for (const auto& [key, value] : config_data_) {
-        if (key.substr(0, section_prefix.length()) == section_prefix) {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool ConfigManager::HasKey(const std::string& section, const std::string& key) const {
-    std::lock_guard<std::mutex> lock(config_mutex_);
-    
-    std::string full_key = CreateKey(section, key);
-    return config_data_.find(full_key) != config_data_.end();
-}
-
-std::vector<std::string> ConfigManager::GetSections() const {
-    std::lock_guard<std::mutex> lock(config_mutex_);
-    
-    std::vector<std::string> sections;
-    for (const auto& [key, value] : config_data_) {
-        size_t dot_pos = key.find('.');
-        if (dot_pos != std::string::npos) {
-            std::string section = key.substr(0, dot_pos);
-            if (std::find(sections.begin(), sections.end(), section) == sections.end()) {
-                sections.push_back(section);
-            }
-        }
-    }
-    return sections;
-}
-
-std::vector<std::string> ConfigManager::GetKeys(const std::string& section) const {
-    std::lock_guard<std::mutex> lock(config_mutex_);
-    
-    std::vector<std::string> keys;
-    std::string section_prefix = section + ".";
-    
-    for (const auto& [full_key, value] : config_data_) {
-        if (full_key.substr(0, section_prefix.length()) == section_prefix) {
-            std::string key = full_key.substr(section_prefix.length());
-            keys.push_back(key);
-        }
-    }
-    return keys;
-}
-
-void ConfigManager::RemoveSection(const std::string& section) {
-    std::lock_guard<std::mutex> lock(config_mutex_);
-    
-    std::string section_prefix = section + ".";
-    auto it = config_data_.begin();
-    while (it != config_data_.end()) {
-        if (it->first.substr(0, section_prefix.length()) == section_prefix) {
-            it = config_data_.erase(it);
-        } else {
-            ++it;
-        }
-    }
-}
-
-void ConfigManager::RemoveKey(const std::string& section, const std::string& key) {
-    std::lock_guard<std::mutex> lock(config_mutex_);
-    
-    std::string full_key = CreateKey(section, key);
-    config_data_.erase(full_key);
-}
-
-void ConfigManager::Clear() {
-    std::lock_guard<std::mutex> lock(config_mutex_);
-    config_data_.clear();
-}
-
-void ConfigManager::LoadDefaultConfig() {
-    Clear();
-    
-    // Auth Server 기본 설정
-    SetInt("auth_server", "port", 8001);
-    SetInt("auth_server", "max_connections", 1000);
-    SetString("auth_server", "log_level", "INFO");
-    
-    // Gateway Server 기본 설정
-    SetInt("gateway_server", "port", 8002);
-    SetInt("gateway_server", "max_connections", 5000);
-    SetString("gateway_server", "log_level", "INFO");
-    
-    // Game Server 기본 설정
-    SetInt("game_server", "port", 8003);
-    SetInt("game_server", "max_connections", 2000);
-    SetInt("game_server", "tick_rate", 20);
-    SetString("game_server", "log_level", "INFO");
-    
-    // Zone Server 기본 설정
-    SetInt("zone_server", "port", 8004);
-    SetInt("zone_server", "max_connections", 1000);
-    SetInt("zone_server", "zone_id", 1);
-    SetInt("zone_server", "map_width", 50);
-    SetInt("zone_server", "map_height", 50);
-    SetString("zone_server", "log_level", "INFO");
-    
-    // Network 기본 설정
-    SetInt("network", "timeout", 30000);
-    SetInt("network", "buffer_size", 8192);
-    SetBool("network", "keep_alive", true);
-    
-    // Logging 기본 설정
-    SetBool("logging", "console_output", true);
-    SetBool("logging", "file_output", true);
-    SetString("logging", "filename", "logs/mmorpg_server.log");
-    SetString("logging", "level", "INFO");
-    
-    // Database 기본 설정 (미래 확장용)
-    SetString("database", "host", "localhost");
-    SetInt("database", "port", 3306);
-    SetString("database", "name", "mmorpg");
-    SetString("database", "user", "mmorpg_user");
-    SetString("database", "password", "password");
-}
-
 std::string ConfigManager::TrimString(const std::string& str) const {
     const std::string whitespace = " \t\r\n";
     size_t start = str.find_first_not_of(whitespace);
-    if (start == std::string::npos) {
-        return "";
-    }
+    if (start == std::string::npos) return "";
     size_t end = str.find_last_not_of(whitespace);
     return str.substr(start, end - start + 1);
 }
 
 std::string ConfigManager::CreateKey(const std::string& section, const std::string& key) const {
-    if (section.empty()) {
-        return key;
-    }
+    if (section.empty()) return key;
     return section + "." + key;
 }
 
-// ServerConfig 구현
-void ServerConfig::InitializeDefaults() {
-    ConfigManager::Instance().LoadDefaultConfig();
+// ===========================================================================
+// AuthServerConfig 구현
+// ===========================================================================
+
+ConfigManager& AuthServerConfig::GetConfig() {
+    static ConfigManager auth_config;
+    return auth_config;
 }
 
-int ServerConfig::GetAuthServerPort() {
-    return ConfigManager::Instance().GetInt("auth_server", "port", 8001);
+bool AuthServerConfig::LoadConfig(const std::string& config_file) {
+    if (!GetConfig().LoadFromFile(config_file)) {
+        LoadDefaults();
+        return SaveDefaultConfig(config_file);
+    }
+    return true;
 }
 
-int ServerConfig::GetAuthServerMaxConnections() {
-    return ConfigManager::Instance().GetInt("auth_server", "max_connections", 1000);
+bool AuthServerConfig::SaveDefaultConfig(const std::string& config_file) {
+    LoadDefaults();
+    return GetConfig().SaveToFile(config_file);
 }
 
-std::string ServerConfig::GetAuthServerLogLevel() {
-    return ConfigManager::Instance().GetString("auth_server", "log_level", "INFO");
+void AuthServerConfig::LoadDefaults() {
+    auto& config = GetConfig();
+    config.Clear();
+
+    // Server 설정
+    config.SetInt("server", "port", 8001);
+    config.SetInt("server", "max_connections", 1000);
+    config.SetString("server", "log_level", "INFO");
+    config.SetString("server", "log_file", "logs/auth_server.log");
+    config.SetBool("server", "console_output", true);
+    config.SetBool("server", "file_output", true);
+
+    // Database 설정
+    config.SetString("database", "host", "localhost");
+    config.SetInt("database", "port", 3306);
+    config.SetString("database", "name", "mmorpg_auth");
+    config.SetString("database", "user", "auth_user");
+    config.SetString("database", "password", "auth_password");
+    config.SetInt("database", "connection_pool_size", 10);
+
+    // Security 설정
+    config.SetString("security", "jwt_secret", "your-super-secret-jwt-key-change-this");
+    config.SetInt("security", "jwt_expiration_hours", 24);
+    config.SetInt("security", "password_hash_rounds", 12);
+    config.SetBool("security", "ssl_enabled", false);
 }
 
-int ServerConfig::GetGatewayServerPort() {
-    return ConfigManager::Instance().GetInt("gateway_server", "port", 8002);
+int AuthServerConfig::GetPort() {
+    return GetConfig().GetInt("server", "port", 8001);
 }
 
-int ServerConfig::GetGatewayServerMaxConnections() {
-    return ConfigManager::Instance().GetInt("gateway_server", "max_connections", 5000);
+int AuthServerConfig::GetMaxConnections() {
+    return GetConfig().GetInt("server", "max_connections", 1000);
 }
 
-std::string ServerConfig::GetGatewayServerLogLevel() {
-    return ConfigManager::Instance().GetString("gateway_server", "log_level", "INFO");
+std::string AuthServerConfig::GetLogLevel() {
+    return GetConfig().GetString("server", "log_level", "INFO");
 }
 
-int ServerConfig::GetGameServerPort() {
-    return ConfigManager::Instance().GetInt("game_server", "port", 8003);
+std::string AuthServerConfig::GetLogFile() {
+    return GetConfig().GetString("server", "log_file", "logs/auth_server.log");
 }
 
-int ServerConfig::GetGameServerMaxConnections() {
-    return ConfigManager::Instance().GetInt("game_server", "max_connections", 2000);
+std::string AuthServerConfig::GetDatabaseHost() {
+    return GetConfig().GetString("database", "host", "localhost");
 }
 
-int ServerConfig::GetGameServerTickRate() {
-    return ConfigManager::Instance().GetInt("game_server", "tick_rate", 20);
+std::string AuthServerConfig::GetJwtSecret() {
+    return GetConfig().GetString("security", "jwt_secret", "default-secret");
 }
 
-std::string ServerConfig::GetGameServerLogLevel() {
-    return ConfigManager::Instance().GetString("game_server", "log_level", "INFO");
+// ===========================================================================
+// GatewayServerConfig 구현
+// ===========================================================================
+
+ConfigManager& GatewayServerConfig::GetConfig() {
+    static ConfigManager gateway_config;
+    return gateway_config;
 }
 
-int ServerConfig::GetZoneServerPort() {
-    return ConfigManager::Instance().GetInt("zone_server", "port", 8004);
+bool GatewayServerConfig::LoadConfig(const std::string& config_file) {
+    if (!GetConfig().LoadFromFile(config_file)) {
+        LoadDefaults();
+        return SaveDefaultConfig(config_file);
+    }
+    return true;
 }
 
-int ServerConfig::GetZoneServerMaxConnections() {
-    return ConfigManager::Instance().GetInt("zone_server", "max_connections", 1000);
+void GatewayServerConfig::LoadDefaults() {
+    auto& config = GetConfig();
+    config.Clear();
+
+    // Server 설정
+    config.SetInt("server", "port", 8002);
+    config.SetInt("server", "max_connections", 5000);
+    config.SetString("server", "log_level", "INFO");
+    config.SetString("server", "log_file", "logs/gateway_server.log");
+    config.SetBool("server", "console_output", true);
+    config.SetBool("server", "file_output", true);
+
+    // Load Balancing 설정
+    config.SetString("load_balance", "method", "round_robin");
+    config.SetInt("load_balance", "health_check_interval", 30);
+    config.SetInt("load_balance", "connection_timeout", 5000);
+    config.SetInt("load_balance", "max_retries", 3);
+    config.SetInt("load_balance", "retry_delay", 1000);
+
+    // Upstream 서버들
+    config.SetString("upstream", "auth_servers", "localhost:8001");
+    config.SetString("upstream", "game_servers", "localhost:8003");
+
+    // Rate Limiting 설정
+    config.SetBool("rate_limit", "enabled", true);
+    config.SetInt("rate_limit", "requests", 100);
+    config.SetInt("rate_limit", "window", 60);
 }
 
-int ServerConfig::GetZoneServerZoneId() {
-    return ConfigManager::Instance().GetInt("zone_server", "zone_id", 1);
+int GatewayServerConfig::GetPort() {
+    return GetConfig().GetInt("server", "port", 8002);
 }
 
-int ServerConfig::GetZoneServerMapWidth() {
-    return ConfigManager::Instance().GetInt("zone_server", "map_width", 50);
+std::string GatewayServerConfig::GetLoadBalanceMethod() {
+    return GetConfig().GetString("load_balance", "method", "round_robin");
 }
 
-int ServerConfig::GetZoneServerMapHeight() {
-    return ConfigManager::Instance().GetInt("zone_server", "map_height", 50);
+// ===========================================================================
+// GameServerConfig 구현
+// ===========================================================================
+
+ConfigManager& GameServerConfig::GetConfig() {
+    static ConfigManager game_config;
+    return game_config;
 }
 
-std::string ServerConfig::GetZoneServerLogLevel() {
-    return ConfigManager::Instance().GetString("zone_server", "log_level", "INFO");
+bool GameServerConfig::LoadConfig(const std::string& config_file) {
+    if (!GetConfig().LoadFromFile(config_file)) {
+        LoadDefaults();
+        return SaveDefaultConfig(config_file);
+    }
+    return true;
 }
 
-int ServerConfig::GetNetworkTimeout() {
-    return ConfigManager::Instance().GetInt("network", "timeout", 30000);
+void GameServerConfig::LoadDefaults() {
+    auto& config = GetConfig();
+    config.Clear();
+
+    // Server 설정
+    config.SetInt("server", "port", 8003);
+    config.SetInt("server", "max_connections", 2000);
+    config.SetInt("server", "tick_rate", 20);
+    config.SetString("server", "log_level", "INFO");
+    config.SetString("server", "log_file", "logs/game_server.log");
+    config.SetBool("server", "console_output", true);
+    config.SetBool("server", "file_output", true);
+
+    // Game Logic 설정
+    config.SetInt("game", "max_players_per_zone", 100);
+    config.SetString("game", "player_move_speed", "5.0");
+    config.SetInt("game", "view_distance", 50);
+    config.SetBool("game", "pvp_enabled", true);
+    config.SetInt("game", "save_interval", 300);
+
+    // Performance 설정
+    config.SetInt("performance", "worker_threads", 4);
+    config.SetInt("performance", "update_queue_size", 1000);
+    config.SetBool("performance", "optimized_networking", true);
+    config.SetInt("performance", "batch_size", 10);
+
+    // Zone Server 연결
+    config.SetString("zones", "servers", "localhost:8004");
+    config.SetInt("zones", "connection_timeout", 5000);
 }
 
-int ServerConfig::GetNetworkBufferSize() {
-    return ConfigManager::Instance().GetInt("network", "buffer_size", 8192);
+int GameServerConfig::GetPort() {
+    return GetConfig().GetInt("server", "port", 8003);
 }
 
-bool ServerConfig::GetNetworkKeepAlive() {
-    return ConfigManager::Instance().GetBool("network", "keep_alive", true);
+int GameServerConfig::GetTickRate() {
+    return GetConfig().GetInt("server", "tick_rate", 20);
 }
 
-bool ServerConfig::GetLogConsoleOutput() {
-    return ConfigManager::Instance().GetBool("logging", "console_output", true);
+int GameServerConfig::GetMaxPlayersPerZone() {
+    return GetConfig().GetInt("game", "max_players_per_zone", 100);
 }
 
-bool ServerConfig::GetLogFileOutput() {
-    return ConfigManager::Instance().GetBool("logging", "file_output", true);
+// ===========================================================================
+// ZoneServerConfig 구현
+// ===========================================================================
+
+ConfigManager& ZoneServerConfig::GetConfig() {
+    static ConfigManager zone_config;
+    return zone_config;
 }
 
-std::string ServerConfig::GetLogFilename() {
-    return ConfigManager::Instance().GetString("logging", "filename", "logs/mmorpg_server.log");
+bool ZoneServerConfig::LoadConfig(const std::string& config_file) {
+    if (!GetConfig().LoadFromFile(config_file)) {
+        LoadDefaults();
+        return SaveDefaultConfig(config_file);
+    }
+    return true;
 }
 
-std::string ServerConfig::GetLogLevel() {
-    return ConfigManager::Instance().GetString("logging", "level", "INFO");
+void ZoneServerConfig::LoadDefaults() {
+    auto& config = GetConfig();
+    config.Clear();
+
+    // Server 설정
+    config.SetInt("server", "port", 8004);
+    config.SetInt("server", "max_connections", 1000);
+    config.SetInt("server", "zone_id", 1);
+    config.SetString("server", "log_level", "INFO");
+    config.SetString("server", "log_file", "logs/zone_server.log");
+    config.SetBool("server", "console_output", true);
+    config.SetBool("server", "file_output", true);
+
+    // Map 설정
+    config.SetInt("map", "width", 100);
+    config.SetInt("map", "height", 100);
+    config.SetString("map", "file", "maps/zone_1.map");
+    config.SetBool("map", "validation_enabled", true);
+
+    // NPC 설정
+    config.SetInt("npc", "max_npcs", 200);
+    config.SetInt("npc", "spawn_interval", 5);
+    config.SetString("npc", "data_file", "data/npcs.json");
+
+    // Instance 설정
+    config.SetBool("instance", "enabled", false);
+    config.SetInt("instance", "max_instances", 10);
+    config.SetInt("instance", "timeout", 3600);
+
+    // Physics 설정
+    config.SetString("physics", "tick_rate", "60.0");
+    config.SetBool("physics", "collision_enabled", true);
+    config.SetString("physics", "gravity", "9.81");
 }
 
-std::string ServerConfig::GetDatabaseHost() {
-    return ConfigManager::Instance().GetString("database", "host", "localhost");
+int ZoneServerConfig::GetPort() {
+    return GetConfig().GetInt("server", "port", 8004);
 }
 
-int ServerConfig::GetDatabasePort() {
-    return ConfigManager::Instance().GetInt("database", "port", 3306);
+int ZoneServerConfig::GetZoneId() {
+    return GetConfig().GetInt("server", "zone_id", 1);
 }
 
-std::string ServerConfig::GetDatabaseName() {
-    return ConfigManager::Instance().GetString("database", "name", "mmorpg");
+int ZoneServerConfig::GetMapWidth() {
+    return GetConfig().GetInt("map", "width", 100);
 }
 
-std::string ServerConfig::GetDatabaseUser() {
-    return ConfigManager::Instance().GetString("database", "user", "mmorpg_user");
+int ZoneServerConfig::GetMapHeight() {
+    return GetConfig().GetInt("map", "height", 100);
 }
 
-std::string ServerConfig::GetDatabasePassword() {
-    return ConfigManager::Instance().GetString("database", "password", "password");
+bool ZoneServerConfig::SaveDefaultConfig(const std::string& config_file) {
+    LoadDefaults();
+    return GetConfig().SaveToFile(config_file);
 }
 
 } // namespace Common

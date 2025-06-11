@@ -1,4 +1,4 @@
-// common/config_manager.h
+// common/config_manager.h - Updated for Independent Server Configs
 #pragma once
 #include <string>
 #include <map>
@@ -44,10 +44,10 @@ public:
     // 모든 설정 초기화
     void Clear();
 
-    // 기본 설정 로드
-    void LoadDefaultConfig();
+    // 기본 설정 생성 (서버 타입별)
+    void LoadDefaultConfig(const std::string& server_type);
 
-private:
+public:
     ConfigManager() = default;
     ~ConfigManager() = default;
 
@@ -61,52 +61,147 @@ private:
     std::map<std::string, std::string> config_data_;
 };
 
-// 자주 사용하는 설정들을 위한 헬퍼 클래스
-class ServerConfig {
+// 서버별 설정 헬퍼 클래스들
+class AuthServerConfig {
 public:
-    static void InitializeDefaults();
+    static bool LoadConfig(const std::string& config_file = "config/auth_server.conf");
+    static bool SaveDefaultConfig(const std::string& config_file = "config/auth_server.conf");
 
-    // Auth Server 설정
-    static int GetAuthServerPort();
-    static int GetAuthServerMaxConnections();
-    static std::string GetAuthServerLogLevel();
-
-    // Gateway Server 설정
-    static int GetGatewayServerPort();
-    static int GetGatewayServerMaxConnections();
-    static std::string GetGatewayServerLogLevel();
-
-    // Game Server 설정
-    static int GetGameServerPort();
-    static int GetGameServerMaxConnections();
-    static int GetGameServerTickRate();
-    static std::string GetGameServerLogLevel();
-
-    // Zone Server 설정
-    static int GetZoneServerPort();
-    static int GetZoneServerMaxConnections();
-    static int GetZoneServerZoneId();
-    static int GetZoneServerMapWidth();
-    static int GetZoneServerMapHeight();
-    static std::string GetZoneServerLogLevel();
-
-    // Network 설정
-    static int GetNetworkTimeout();
-    static int GetNetworkBufferSize();
-    static bool GetNetworkKeepAlive();
-
-    // Logging 설정
-    static bool GetLogConsoleOutput();
-    static bool GetLogFileOutput();
-    static std::string GetLogFilename();
+    // Auth Server 전용 설정
+    static int GetPort();
+    static int GetMaxConnections();
     static std::string GetLogLevel();
+    static std::string GetLogFile();
+    static bool GetConsoleOutput();
+    static bool GetFileOutput();
 
-    // Database 설정 (미래 확장용)
+    // Database 설정 (Auth 서버용)
     static std::string GetDatabaseHost();
     static int GetDatabasePort();
     static std::string GetDatabaseName();
     static std::string GetDatabaseUser();
     static std::string GetDatabasePassword();
+    static int GetConnectionPoolSize();
+
+    // Security 설정
+    static std::string GetJwtSecret();
+    static int GetJwtExpirationHours();
+    static int GetPasswordHashRounds();
+    static bool GetSslEnabled();
+
+private:
+    static ConfigManager& GetConfig();
+    static void LoadDefaults();
+};
+
+class GatewayServerConfig {
+public:
+    static bool LoadConfig(const std::string& config_file = "config/gateway_server.conf");
+    static bool SaveDefaultConfig(const std::string& config_file = "config/gateway_server.conf");
+
+    // Gateway Server 전용 설정
+    static int GetPort();
+    static int GetMaxConnections();
+    static std::string GetLogLevel();
+    static std::string GetLogFile();
+    static bool GetConsoleOutput();
+    static bool GetFileOutput();
+
+    // Load Balancing 설정
+    static std::string GetLoadBalanceMethod(); // round_robin, least_connections, weighted
+    static int GetHealthCheckInterval();
+    static int GetConnectionTimeout();
+
+    // Upstream 서버들 설정
+    static std::vector<std::string> GetAuthServers();
+    static std::vector<std::string> GetGameServers();
+    static int GetMaxRetries();
+    static int GetRetryDelay();
+
+    // Rate Limiting 설정
+    static bool GetRateLimitEnabled();
+    static int GetRateLimitRequests();
+    static int GetRateLimitWindow();
+
+private:
+    static ConfigManager& GetConfig();
+    static void LoadDefaults();
+};
+
+class GameServerConfig {
+public:
+    static bool LoadConfig(const std::string& config_file = "config/game_server.conf");
+    static bool SaveDefaultConfig(const std::string& config_file = "config/game_server.conf");
+
+    // Game Server 전용 설정
+    static int GetPort();
+    static int GetMaxConnections();
+    static int GetTickRate();
+    static std::string GetLogLevel();
+    static std::string GetLogFile();
+    static bool GetConsoleOutput();
+    static bool GetFileOutput();
+
+    // Game Logic 설정
+    static int GetMaxPlayersPerZone();
+    static double GetPlayerMoveSpeed();
+    static int GetViewDistance();
+    static bool GetPvpEnabled();
+    static int GetSaveInterval();
+
+    // Performance 설정
+    static int GetWorkerThreads();
+    static int GetUpdateQueueSize();
+    static bool GetOptimizedNetworking();
+    static int GetBatchSize();
+
+    // Zone Server 연결 설정
+    static std::vector<std::string> GetZoneServers();
+    static int GetZoneConnectionTimeout();
+
+private:
+    static ConfigManager& GetConfig();
+    static void LoadDefaults();
+};
+
+class ZoneServerConfig {
+public:
+    static bool LoadConfig(const std::string& config_file = "config/zone_server.conf");
+    static bool SaveDefaultConfig(const std::string& config_file = "config/zone_server.conf");
+
+    // Zone Server 전용 설정
+    static int GetPort();
+    static int GetMaxConnections();
+    static int GetZoneId();
+    static std::string GetLogLevel();
+    static std::string GetLogFile();
+    static bool GetConsoleOutput();
+    static bool GetFileOutput();
+
+    // Map 설정
+    static int GetMapWidth();
+    static int GetMapHeight();
+    static std::string GetMapFile();
+    static bool GetMapValidationEnabled();
+
+    // NPC 설정
+    static int GetMaxNpcs();
+    static int GetNpcSpawnInterval();
+    static std::string GetNpcDataFile();
+
+    // Instance 설정
+    static bool GetInstanceEnabled();
+    static int GetMaxInstances();
+    static int GetInstanceTimeout();
+
+    // Physics 설정
+    static double GetPhysicsTickRate();
+    static bool GetCollisionEnabled();
+    static double GetGravity();
+
+private:
+    static ConfigManager& GetConfig();
+    static void LoadDefaults();
 };
 
 } // namespace Common
