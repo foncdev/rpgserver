@@ -1,5 +1,5 @@
 # =============================================================================
-# CMakeLists.txt (Root)
+# CMakeLists.txt (Root) - Updated with Common Libraries
 # =============================================================================
 
 cmake_minimum_required(VERSION 3.16)
@@ -40,6 +40,17 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
+# 공통 라이브러리 생성
+add_library(CommonLib STATIC
+        common/log_manager.h
+        common/log_manager.cpp
+        common/config_manager.h
+        common/config_manager.cpp
+)
+
+target_include_directories(CommonLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(CommonLib ${PLATFORM_LIBS})
+
 # 네트워크 라이브러리 생성
 add_library(NetworkLib STATIC
         network/network_manager.h
@@ -47,46 +58,50 @@ add_library(NetworkLib STATIC
 )
 
 target_include_directories(NetworkLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(NetworkLib ${PLATFORM_LIBS})
+target_link_libraries(NetworkLib CommonLib ${PLATFORM_LIBS})
 
 # 인증 서버
 add_executable(AuthServer
         auth_server/main.cpp
 )
-target_link_libraries(AuthServer NetworkLib)
+target_link_libraries(AuthServer NetworkLib CommonLib)
 
 # 게이트웨이 서버
 add_executable(GatewayServer
         gateway_server/main.cpp
 )
-target_link_libraries(GatewayServer NetworkLib)
+target_link_libraries(GatewayServer NetworkLib CommonLib)
 
 # 게임 서버
 add_executable(GameServer
         game_server/main.cpp
 )
-target_link_libraries(GameServer NetworkLib)
+target_link_libraries(GameServer NetworkLib CommonLib)
 
 # 존 서버
 add_executable(ZoneServer
         zone_server/main.cpp
 )
-target_link_libraries(ZoneServer NetworkLib)
+target_link_libraries(ZoneServer NetworkLib CommonLib)
 
 # 테스트 클라이언트
 add_executable(TestClient
         test_client/main.cpp
 )
-target_link_libraries(TestClient NetworkLib)
+target_link_libraries(TestClient NetworkLib CommonLib)
 
 # 설치 규칙
 install(TARGETS AuthServer GatewayServer GameServer ZoneServer TestClient
         RUNTIME DESTINATION bin)
 
+# 설정 파일 및 디렉토리 설치
+install(DIRECTORY DESTINATION config)
+install(DIRECTORY DESTINATION logs)
+
 # CPack 설정 (패키징)
 set(CPACK_PACKAGE_NAME "MMORPG_Server_System")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MMORPG Multi-Server System")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MMORPG Multi-Server System with Logging and Configuration")
 set(CPACK_PACKAGE_VENDOR "MMORPG Dev Team")
 
 if(WIN32)
