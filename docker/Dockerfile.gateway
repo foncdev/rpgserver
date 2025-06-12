@@ -1,0 +1,44 @@
+# =============================================================================
+# docker/Dockerfile.gateway - Gateway Server용 Dockerfile
+# =============================================================================
+FROM ubuntu:22.04 AS builder
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY . .
+
+RUN mkdir -p build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    make GatewayServer
+
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    libstdc++6 \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash mmorpg
+
+WORKDIR /app
+RUN mkdir -p config logs
+
+COPY --from=builder /src/build/bin/GatewayServer /app/
+COPY --chown=mmorpg:mmorpg . /app/
+
+RUN chown -R mmorpg:mmorpg /app
+USER mmorpg
+
+ENV CONFIG_FILE=/app/config/gateway_server.conf
+
+EXPOSE 8002
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD nc -z localhost 8002 || exit 1
+
+CMD ["./GatewayServer"]

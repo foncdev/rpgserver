@@ -65,3 +65,39 @@ Client -> Gateway Server -> Game Server -> Zone Server
               |
          Auth Server
 ```
+
+## 빠른 시작
+```
+bash# 1. 독립 설정 시스템 초기화
+./scripts/setup_independent_configs.sh
+
+# 2. 설정 검증
+./scripts/validate_configs.sh development
+
+# 3. 개발 환경 배포
+./scripts/deploy.sh development
+
+# 4. 서버 상태 모니터링
+./scripts/monitor.sh development
+```
+
+## 프로덕션 배포
+```
+# 1. 환경변수 설정
+export DB_AUTH_HOST=prod-db.example.com
+export JWT_SECRET=super-secure-jwt-key
+
+# 2. 프로덕션 설정 생성
+./scripts/generate_production_configs.sh
+
+# 3. Kubernetes 배포
+DEPLOY_METHOD=k8s ./scripts/deploy.sh production
+```
+
+## 개별 서버 실행
+```
+# Auth Server만 실행
+./dist/linux/bin/AuthServer
+
+# 설정 파일 위치는 자동으로 config/auth_server.conf를 찾음
+```

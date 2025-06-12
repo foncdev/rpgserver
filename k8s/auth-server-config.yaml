@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-server-config
+  namespace: mmorpg
+data:
+  auth_server.conf: |
+    [server]
+    port = 8001
+    max_connections = 1000
+    log_level = INFO
+    log_file = /var/log/auth_server.log
+    console_output = false
+    file_output = true
+    
+    [database]
+    host = auth-db-service
+    port = 3306
+    name = mmorpg_auth
+    user = auth_user
+    password = ${DB_PASSWORD}
+    connection_pool_size = 20
+    
+    [security]
+    jwt_secret = ${JWT_SECRET}
+    jwt_expiration_hours = 8
+    password_hash_rounds = 12
+    ssl_enabled = true
+  ```_interval = 5
+  data_file = data/npcs.json
+
+  [instance]
+  enabled = false
+  max_instances = 10
+  timeout = 3600
+  
+  [physics]
+  tick_rate = 60.0
+  collision_enabled = true
+  gravity = 9.81

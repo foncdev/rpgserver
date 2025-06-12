@@ -1,0 +1,44 @@
+# =============================================================================
+# docker/Dockerfile.zone - Zone Server용 Dockerfile
+# =============================================================================
+FROM ubuntu:22.04 AS builder
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY . .
+
+RUN mkdir -p build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    make ZoneServer
+
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    libstdc++6 \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash mmorpg
+
+WORKDIR /app
+RUN mkdir -p config logs maps data
+
+COPY --from=builder /src/build/bin/ZoneServer /app/
+COPY --chown=mmorpg:mmorpg . /app/
+
+RUN chown -R mmorpg:mmorpg /app
+USER mmorpg
+
+ENV CONFIG_FILE=/app/config/zone_server.conf
+
+EXPOSE 8004
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD nc -z localhost 8004 || exit 1
+
+CMD ["./ZoneServer"]

@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  auth_db:
+    image: mysql:8.0
+    container_name: mmorpg_auth_db_dev
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: mmorpg_auth_dev
+      MYSQL_USER: dev_user
+      MYSQL_PASSWORD: dev_password
+    volumes:
+      - auth_db_data_dev:/var/lib/mysql
+      - ./sql/init_auth.sql:/docker-entrypoint-initdb.d/init_auth.sql
+    ports:
+      - "3306:3306"
+    networks:
+      - mmorpg_dev
+
+  auth_server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.auth
+    container_name: mmorpg_auth_server_dev
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./config/development/auth_server.conf:/app/config/auth_server.conf:ro
+      - ./logs:/app/logs
+    environment:
+      - ENVIRONMENT=development
+      - CONFIG_FILE=/app/config/auth_server.conf
+    depends_on:
+      - auth_db
+    networks:
+      - mmorpg_dev
+    restart: unless-stopped
+
+  gateway_server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gateway
+    container_name: mmorpg_gateway_server_dev
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./config/development/gateway_server.conf:/app/config/gateway_server.conf:ro
+      - ./logs:/app/logs
+    environment:
+      - ENVIRONMENT=development
+      - CONFIG_FILE=/app/config/gateway_server.conf
+    depends_on:
+      - auth_server
+    networks:
+      - mmorpg_dev
+    restart: unless-stopped
+
+  game_server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.game
+    container_name: mmorpg_game_server_dev
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./config/development/game_server.conf:/app/config/game_server.conf:ro
+      - ./logs:/app/logs
+    environment:
+      - ENVIRONMENT=development
+      - CONFIG_FILE=/app/config/game_server.conf
+    depends_on:
+      - gateway_server
+    networks:
+      - mmorpg_dev
+    restart: unless-stopped
+
+  zone_server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.zone
+    container_name: mmorpg_zone_server_dev
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./config/development/zone_server.conf:/app/config/zone_server.conf:ro
+      - ./logs:/app/logs
+      - ./maps:/app/maps
+      - ./data:/app/data
+    environment:
+      - ENVIRONMENT=development
+      - CONFIG_FILE=/app/config/zone_server.conf
+    depends_on:
+      - game_server
+    networks:
+      - mmorpg_dev
+    restart: unless-stopped
+
+  # 개발용 도구들
+  adminer:
+    image: adminer
+    container_name: mmorpg_adminer_dev
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth_db
+    networks:
+      - mmorpg_dev
+
+  prometheus:
+    image: prom/prometheus
+    container_name: mmorpg_prometheus_dev
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - mmorpg_dev
+
+  grafana:
+    image: grafana/grafana
+    container_name: mmorpg_grafana_dev
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data_dev:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - mmorpg_dev
+
+volumes:
+  auth_db_data_dev:
+  grafana_data_dev:
+
+networks:
+  mmorpg_dev:
+    driver: bridge

@@ -1,0 +1,35 @@
+# =============================================================================
+# .dockerignore
+# =============================================================================
+# Build directories
+build/
+dist/
+bin/
+lib/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+docs/
+
+# Temporary files
+*.tmp
+*.log
+logs/
+
+# Test files
+test_*
+*_test.cpp

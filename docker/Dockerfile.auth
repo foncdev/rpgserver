@@ -1,0 +1,52 @@
+# docker/Dockerfile.auth - Auth Server용 Dockerfile
+FROM ubuntu:22.04 AS builder
+
+# 빌드 도구 설치
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# 소스 코드 복사
+WORKDIR /src
+COPY . .
+
+# 빌드
+RUN mkdir -p build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    make AuthServer
+
+# 실행 환경
+FROM ubuntu:22.04
+
+# 런타임 라이브러리 설치
+RUN apt-get update && apt-get install -y \
+    libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 애플리케이션 사용자 생성
+RUN useradd -m -s /bin/bash mmorpg
+
+# 애플리케이션 디렉토리 생성
+WORKDIR /app
+RUN mkdir -p config logs
+
+# 빌드된 바이너리 복사
+COPY --from=builder /src/build/bin/AuthServer /app/
+COPY --chown=mmorpg:mmorpg . /app/
+
+# 권한 설정
+RUN chown -R mmorpg:mmorpg /app
+USER mmorpg
+
+# 기본 설정 파일 위치
+ENV CONFIG_FILE=/app/config/auth_server.conf
+
+EXPOSE 8001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD nc -z localhost 8001 || exit 1
+
+CMD ["./AuthServer"]
